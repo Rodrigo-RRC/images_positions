@@ -18,7 +18,15 @@ imagem ──► detectar rosto ──► pitch / yaw / roll ──► comparar 
 | **Yaw**   | para esquerda / direita (balançar "não") |
 | **Roll**  | inclinada para um ombro |
 
+<p align="center">
+  <img src="docs/img/pitch-yaw-roll.png" alt="Rotações da cabeça: pitch, roll e yaw, com sentidos positivo e negativo" width="400">
+</p>
+
+<!-- TODO: citar a fonte original da imagem ou substituir por ilustração própria antes de tornar o repositório público -->
+
 Rosto perfeitamente frontal: pitch = yaw = roll = 0°.
+
+> O sinal (+/−) de cada ângulo depende da convenção adotada. A convenção deste projeto será definida no passo de cálculo dos ângulos.
 
 ---
 

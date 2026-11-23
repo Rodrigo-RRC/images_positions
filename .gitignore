@@ -1,0 +1,21 @@
+# Ambiente virtual Python
+.venv/
+venv/
+
+# Cache do Python
+__pycache__/
+*.pyc
+
+# Dados e modelos (baixados por script, nunca versionados)
+data/
+models/
+
+# Resultados gerados
+output/
+
+# Credenciais
+.env
+kaggle.json
+
+# Lixo do Windows ao copiar arquivos para o WSL
+*:Zone.Identifier

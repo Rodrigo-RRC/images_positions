@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 250" width="900" height="250" role="img" aria-labelledby="titulo desc">
+  <title id="titulo">Pitch, yaw e roll da cabeça</title>
+  <desc id="desc">Três painéis. Pitch: rosto olhando para baixo (negativo), frontal (zero) e para cima (positivo). Yaw: rosto virado para a esquerda (negativo), frontal e para a direita (positivo). Roll: cabeça inclinada para a esquerda (negativo), reta e para a direita (positivo), do ponto de vista de quem olha a imagem.</desc>
+
+  <style>
+    .cabeca  { fill: none; stroke: #8b949e; stroke-width: 2.5; }
+    .traco   { fill: none; stroke: #8b949e; stroke-width: 2.5; stroke-linecap: round; }
+    .olho    { fill: #8b949e; }
+    .titulo  { font: 700 22px system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #8b949e; }
+    .sub     { font: 400 14px system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #8b949e; }
+    .rotulo  { font: 700 28px system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .neg     { fill: #e8803a; }
+    .zero    { fill: #8b949e; }
+    .pos     { fill: #2f81f7; }
+    .divisor { stroke: #8b949e; stroke-opacity: 0.35; stroke-width: 1; }
+  </style>
+
+  <defs>
+    <!-- Traços do rosto (olhos, nariz, boca), centrados em (0,0) -->
+    <g id="tracos">
+      <circle class="olho" cx="-11" cy="-8" r="3.5"/>
+      <circle class="olho" cx="11" cy="-8" r="3.5"/>
+      <path class="traco" d="M0,-3 L0,8"/>
+      <path class="traco" d="M-10,18 Q0,24 10,18"/>
+    </g>
+    <ellipse id="contorno" class="cabeca" cx="0" cy="0" rx="30" ry="38"/>
+  </defs>
+
+  <!-- ===================== PITCH ===================== -->
+  <g transform="translate(0,0)">
+    <text class="titulo" x="150" y="32" text-anchor="middle">Pitch</text>
+    <text class="sub" x="150" y="54" text-anchor="middle">cabeça para cima / baixo</text>
+
+    <g transform="translate(60,135)"><use href="#contorno"/><use href="#tracos" transform="translate(0,10)"/></g>
+    <g transform="translate(150,135)"><use href="#contorno"/><use href="#tracos"/></g>
+    <g transform="translate(240,135)"><use href="#contorno"/><use href="#tracos" transform="translate(0,-10)"/></g>
+
+    <text class="rotulo neg"  x="60"  y="214" text-anchor="middle">−</text>
+    <text class="rotulo zero" x="150" y="214" text-anchor="middle">0°</text>
+    <text class="rotulo pos"  x="240" y="214" text-anchor="middle">+</text>
+    <text class="sub" x="60"  y="232" text-anchor="middle">baixo</text>
+    <text class="sub" x="240" y="232" text-anchor="middle">cima</text>
+  </g>
+
+  <line class="divisor" x1="300" y1="20" x2="300" y2="235"/>
+
+  <!-- ====================== YAW ====================== -->
+  <g transform="translate(300,0)">
+    <text class="titulo" x="150" y="32" text-anchor="middle">Yaw</text>
+    <text class="sub" x="150" y="54" text-anchor="middle">rosto para esquerda / direita</text>
+
+    <g transform="translate(60,135)"><use href="#contorno"/><use href="#tracos" transform="translate(-12,0)"/></g>
+    <g transform="translate(150,135)"><use href="#contorno"/><use href="#tracos"/></g>
+    <g transform="translate(240,135)"><use href="#contorno"/><use href="#tracos" transform="translate(12,0)"/></g>
+
+    <text class="rotulo neg"  x="60"  y="214" text-anchor="middle">−</text>
+    <text class="rotulo zero" x="150" y="214" text-anchor="middle">0°</text>
+    <text class="rotulo pos"  x="240" y="214" text-anchor="middle">+</text>
+    <text class="sub" x="60"  y="232" text-anchor="middle">esquerda</text>
+    <text class="sub" x="240" y="232" text-anchor="middle">direita</text>
+  </g>
+
+  <line class="divisor" x1="600" y1="20" x2="600" y2="235"/>
+
+  <!-- ====================== ROLL ===================== -->
+  <g transform="translate(600,0)">
+    <text class="titulo" x="150" y="32" text-anchor="middle">Roll</text>
+    <text class="sub" x="150" y="54" text-anchor="middle">cabeça inclinada para um ombro</text>
+
+    <g transform="translate(60,135) rotate(-22)"><use href="#contorno"/><use href="#tracos"/></g>
+    <g transform="translate(150,135)"><use href="#contorno"/><use href="#tracos"/></g>
+    <g transform="translate(240,135) rotate(22)"><use href="#contorno"/><use href="#tracos"/></g>
+
+    <text class="rotulo neg"  x="60"  y="214" text-anchor="middle">−</text>
+    <text class="rotulo zero" x="150" y="214" text-anchor="middle">0°</text>
+    <text class="rotulo pos"  x="240" y="214" text-anchor="middle">+</text>
+    <text class="sub" x="60"  y="232" text-anchor="middle">esquerda</text>
+    <text class="sub" x="240" y="232" text-anchor="middle">direita</text>
+  </g>
+</svg>

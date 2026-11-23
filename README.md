@@ -12,31 +12,21 @@ Receber uma imagem com um rosto, calcular a orientação da cabeça e **aprovar 
 imagem ──► detectar rosto ──► pitch / yaw / roll ──► comparar com limites ──► APROVADA / REPROVADA
 ```
 
-<table>
-<tr>
-<td>
+<p align="center">
+  <img src="docs/img/pitch-yaw-roll.svg" alt="Pitch: cabeça para baixo (−) ou para cima (+). Yaw: rosto para a esquerda (−) ou para a direita (+). Roll: cabeça inclinada para a esquerda (−) ou para a direita (+)." width="720">
+</p>
 
-| Ângulo | Movimento da cabeça |
-|--------|---------------------|
-| **Pitch** | cima / baixo<br>(acenar "sim") |
-| **Yaw**   | esquerda / direita<br>(balançar "não") |
-| **Roll**  | inclinar para um ombro |
+Rosto frontal: **pitch = yaw = roll = 0°**.
 
-Rosto frontal: **pitch = yaw = roll = 0°**
+**Convenção de sinais** (esquerda e direita do ponto de vista de quem olha a imagem):
 
-</td>
-<td>
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/pitch-yaw-roll-dark.png">
-  <img src="docs/img/pitch-yaw-roll-light.png" alt="Rotações da cabeça: pitch, roll e yaw, com sentidos positivo e negativo" width="300">
-</picture>
-</td>
-</tr>
-</table>
+| Ângulo | Negativo (−) | Positivo (+) |
+|--------|--------------|--------------|
+| **Pitch** | cabeça para baixo | cabeça para cima |
+| **Yaw**   | rosto virado para a esquerda | rosto virado para a direita |
+| **Roll**  | cabeça inclinada para a esquerda | cabeça inclinada para a direita |
 
-<!-- TODO: citar a fonte original da imagem ou substituir por ilustração própria antes de tornar o repositório público -->
-
-> O sinal (+/−) de cada ângulo depende da convenção adotada. A convenção deste projeto será definida no passo de cálculo dos ângulos.
+> Cada biblioteca e cada dataset pode usar uma convenção diferente. Ao comparar resultados, é preciso converter os sinais para esta convenção.
 
 ---
 

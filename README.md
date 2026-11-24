@@ -107,7 +107,7 @@ Saída:
 
 ```text
 Rostos encontrados: 1
-Pontos no primeiro rosto: 478
+Pontos no rosto: 478
 Ponto 1 (ponta do nariz): NormalizedLandmark(x=0.503, y=0.628, z=-0.121, ...)
 ```
 
@@ -124,6 +124,21 @@ Cada ponto tem coordenadas **normalizadas**:
 - `z` é a profundidade relativa: quanto mais negativo, mais perto da câmera.
 
 > As linhas `WARNING`, `W0000` e `INFO` na saída são logs internos do MediaPipe, não erros.
+
+### Imagem sem rosto: primeira regra do guardrail
+
+Se não houver rosto, `result.face_landmarks` vem como lista vazia `[]`, e acessar `[0]` quebraria o programa com `IndexError`.
+O script verifica antes e **reprova a imagem com o motivo**:
+
+```python
+if not result.face_landmarks:          # lista vazia conta como falso em Python
+    print("REPROVADA: nenhum rosto encontrado na imagem.")
+```
+
+| Imagem de teste | Resultado |
+|-----------------|-----------|
+| com um rosto    | 478 pontos detectados |
+| sem rosto       | `REPROVADA: nenhum rosto encontrado na imagem.` |
 
 ---
 

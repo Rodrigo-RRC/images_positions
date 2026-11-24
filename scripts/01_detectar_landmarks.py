@@ -15,8 +15,11 @@ with FaceLandmarker.create_from_options(options) as landmarker:
     # Synchronous single-image call (stateless across images)
     mp_image = mp.Image.create_from_file("data/image_01.jpg")
     result = landmarker.detect(mp_image)
-    print("Rostos encontrados:", len(result.face_landmarks))
-    print("Pontos no primeiro rosto:", len(result.face_landmarks[0]))
-    print("Ponto 1 (ponta do nariz):", result.face_landmarks[0][1])
-   
+    if not result.face_landmarks:
+        print("REPROVADA: nenhum rosto encontrado na imagem.")
+    else:
+        rosto = result.face_landmarks[0]
+        print("Rostos encontrados:", len(result.face_landmarks))
+        print("Pontos no rosto:", len(rosto))
+        print("Ponto 1 (ponta do nariz):", rosto[1])
     

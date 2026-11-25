@@ -140,6 +140,46 @@ if not result.face_landmarks:          # lista vazia conta como falso em Python
 | com um rosto    | 478 pontos detectados |
 | sem rosto       | `REPROVADA: nenhum rosto encontrado na imagem.` |
 
+## Passo 4: Calcular pitch, yaw e roll *(em andamento)*
+
+Script: `scripts/02_calcular_angulos.py`.
+
+Para obter a pose, ativamos uma opção nova no detector:
+
+```python
+output_facial_transformation_matrixes=True
+```
+
+Com ela, além dos 478 pontos, o modelo devolve uma **matriz de pose 4x4** por rosto (`result.facial_transformation_matrixes`).
+A matriz diz quanto um rosto 3D padrão teve que ser **girado** e **deslocado** para coincidir com o rosto da foto:
+
+```text
+┌─ rotação (3x3) ─────┐ ┌ translação ┐
+[ 1.000   0.007  -0.022 │   0.211 ]   x
+[-0.011   0.974  -0.224 │  -1.834 ]   y
+[ 0.020   0.225   0.974 │ -34.374 ]   z: ~34 cm da câmera
+[ 0       0       0     │   1     ]   linha fixa
+```
+<sub>Matriz da `image_01.jpg`, impressa pelo script.</sub>
+
+### A matriz de rotação, em desenho
+
+👉 **[Abrir a animação interativa](https://claude.ai/artifact/RApU88BF746By99rL7knf4)** (também em [`docs/matriz-rotacao.html`](docs/matriz-rotacao.html): baixe o arquivo e abra no navegador)
+
+Uma cabeça em 3D gira na tela e a matriz muda ao vivo, em 8 passos. A ideia central:
+
+- Três setas ficam presas na cabeça: **vermelha (x)**, no lado; **verde (y)**, no topo da cabeça; e **azul (z)**, no nariz.
+- **Cada coluna** da matriz é uma seta. **Cada linha** pergunta quanto essa seta aponta para a direita, para cima ou para a câmera.
+- Em cada giro, **uma seta fica parada** (é o eixo do giro) e as outras duas se inclinam:
+
+| Movimento | Seta parada | Casas que mudam |
+|-----------|-------------|-----------------|
+| **Pitch** (fazer "sim") | vermelha (x) | [cima, azul (z)] e [câmera, verde (y)] |
+| **Yaw** (fazer "não") | verde (y) | [direita, azul (z)] e [câmera, vermelha (x)] |
+| **Roll** (orelha no ombro) | azul (z) | [direita, verde (y)] e [cima, vermelha (x)] |
+
+Na `image_01.jpg`, só as casas do pitch fogem de 0 e 1 (−0.224 e 0.225): a cabeça está cerca de **13° para baixo**.
+
 ---
 
 ## Estrutura
@@ -147,6 +187,7 @@ if not result.face_landmarks:          # lista vazia conta como falso em Python
 ```text
 images_positions/
 ├── data/       # imagens de teste (não versionado)
+├── docs/       # ilustrações e a animação da matriz de rotação
 ├── models/     # face_landmarker.task (não versionado)
 └── scripts/    # scripts numerados, um por etapa
 ```

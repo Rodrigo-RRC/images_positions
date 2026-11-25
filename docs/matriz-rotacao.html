@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Matriz de rotação da cabeça</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: guia de passos + cena 3D + matriz ao vivo; no celular empilha guia → cena → matriz */
+:root {
+  --bg: #f4f6f9; --surface: #ffffff; --fg: #1a1f29; --muted: #5a6474; --line: #d8dde5;
+  --x: #d4443b; --y: #24924a; --z: #2d6ad3; --hl: #e9a21b; --hl-bg: #fdf3dc;
+  --head: #edcfb4; --head-dark: #a77a5a; --feature: #3b2a20; --cam: #8a93a3;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11141a; --surface: #191d25; --fg: #e7eaf0; --muted: #9ba4b3; --line: #2b313c;
+  --x: #ff6a60; --y: #4ccb73; --z: #6b9dff; --hl: #f4bd45; --hl-bg: #3a2f17;
+  --head: #c9a284; --head-dark: #6e5040; --feature: #24180f; --cam: #6c7586;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #11141a; --surface: #191d25; --fg: #e7eaf0; --muted: #9ba4b3; --line: #2b313c;
+  --x: #ff6a60; --y: #4ccb73; --z: #6b9dff; --hl: #f4bd45; --hl-bg: #3a2f17;
+  --head: #c9a284; --head-dark: #6e5040; --feature: #24180f; --cam: #6c7586;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { padding-block: 28px 8px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.5rem, 3.2vw, 2.1rem); margin: 0 0 6px; text-wrap: balance; letter-spacing: -0.01em; }
+.lead { color: var(--muted); margin: 0; max-width: 68ch; }
+main { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); grid-template-areas: "cena passos" "cena matriz"; align-items: start; padding-block: 16px 40px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.cena { grid-area: cena; display: grid; gap: 12px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.passos { grid-area: passos; display: grid; gap: 10px; }
+.matriz { grid-area: matriz; display: grid; gap: 12px; }
+@media (max-width: 860px) {
+  main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "passos" "cena" "matriz"; }
+  .cena { position: static; }
+}
+canvas { width: 100%; aspect-ratio: 1 / 0.86; display: block; touch-action: none; cursor: grab; border-radius: 10px; background: var(--bg); }
+canvas:active { cursor: grabbing; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.hint { color: var(--muted); font-size: 13px; }
+button { font: 600 14px var(--font-body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--z); outline-offset: 2px; }
+button:disabled { opacity: .4; cursor: default; }
+button.primario { background: var(--fg); color: var(--surface); border-color: var(--fg); }
+.sliders { display: grid; gap: 8px; }
+.slider { display: grid; grid-template-columns: 4.2rem minmax(0, 1fr) auto 8.6rem; gap: 10px; align-items: center; }
+.slider label { font-family: var(--font-display); font-weight: 600; }
+.slider input { width: 100%; accent-color: var(--fg); }
+.valor { display: inline-flex; align-items: center; gap: 2px; font-family: var(--font-mono); }
+.valor input { width: 5.4rem; font: 600 14px var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; }
+.valor input:hover { border-color: var(--muted); }
+.slider .desc { font-size: 13px; color: var(--muted); line-height: 1.3; }
+@media (max-width: 520px) { .slider { grid-template-columns: 3.6rem minmax(0, 1fr) auto; } .slider .desc { grid-column: 2 / -1; } }
+.contador { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+.passos h2 { font-family: var(--font-display); font-size: 1.35rem; margin: 0; text-wrap: balance; }
+.texto p { margin: 0 0 8px; max-width: 62ch; }
+.texto pre { font-family: var(--font-mono); font-size: 13px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-x: auto; margin: 4px 0 8px; }
+table.giros { min-width: 0; border-spacing: 0; margin: 4px 0 10px; font-size: 14px; }
+table.giros th, table.giros td { background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 7px 8px 7px 0; text-align: left; vertical-align: top; transition: none; }
+table.giros th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.nav { display: flex; gap: 8px; justify-content: space-between; }
+.cx { color: var(--x); font-weight: 600; } .cy { color: var(--y); font-weight: 600; } .cz { color: var(--z); font-weight: 600; }
+.mark { background: var(--hl-bg); border-bottom: 2px solid var(--hl); padding: 0 3px; border-radius: 3px; }
+.tabela { overflow-x: auto; }
+table { border-collapse: separate; border-spacing: 6px; width: 100%; min-width: 360px; }
+th { font-weight: 600; font-size: 13px; text-align: left; vertical-align: bottom; }
+thead th { text-align: center; }
+thead th small { display: block; font-weight: 400; color: var(--muted); }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+.badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 99px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); margin-top: 3px; visibility: hidden; }
+.badge.on { visibility: visible; }
+tbody th { color: var(--muted); white-space: nowrap; padding-right: 4px; }
+tbody th span { display: block; font-size: 11px; font-weight: 400; }
+td { background: var(--bg); border: 2px solid transparent; border-radius: 8px; padding: 8px 6px 6px; text-align: center; transition: border-color .2s, background .2s; }
+td .num { font-family: var(--font-mono); font-size: 15px; font-variant-numeric: tabular-nums; display: block; }
+td .bar { display: block; height: 4px; margin-top: 6px; background: var(--line); border-radius: 2px; position: relative; overflow: hidden; }
+td .bar i { position: absolute; top: 0; bottom: 0; background: var(--muted); border-radius: 2px; }
+td.c0 .bar i { background: var(--x); } td.c1 .bar i { background: var(--y); } td.c2 .bar i { background: var(--z); }
+td.hl { border-color: var(--hl); background: var(--hl-bg); }
+td.hl .num { font-weight: 600; }
+.regra { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; font-size: 13px; }
+.regra div { border-top: 2px solid var(--line); padding-top: 6px; color: var(--muted); }
+.regra b { color: var(--fg); display: block; font-family: var(--font-display); }
+@media (max-width: 480px) { .regra { grid-template-columns: minmax(0, 1fr); } }
+.leitura { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.leitura li { padding: 6px 0; border-top: 1px solid var(--line); }
+.titulo-sec { font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; margin: 0; }
+@media (prefers-reduced-motion: reduce) { td { transition: none; } }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <h1>A matriz de rotação, em desenho</h1>
+  <p class="lead">A cabeça gira, a matriz muda. Siga os passos à direita ou mexa nos controles embaixo da cena. Os números são os mesmos que o MediaPipe devolve em <code>facial_transformation_matrixes</code>.</p>
+</header>
+
+<main class="wrap">
+  <section class="card cena" aria-label="Cena 3D">
+    <canvas id="cena" role="img" aria-label="Cabeça em 3D com três setas coloridas presas nela e as direções fixas da câmera em cinza tracejado"></canvas>
+    <div class="tools">
+      <button id="vista" type="button">Ver como a câmera vê</button>
+      <span class="hint">Arraste a cena para olhar de outro ângulo</span>
+    </div>
+    <div class="sliders">
+      <div class="slider"><label for="s-pitch">Pitch</label><input id="s-pitch" type="range" min="-45" max="45" step="0.1" value="0"><span class="valor"><input id="n-pitch" type="number" min="-45" max="45" step="0.1" value="0" inputmode="decimal" aria-label="Pitch em graus"><span>°</span></span><span class="desc" id="o-pitch"></span></div>
+      <div class="slider"><label for="s-yaw">Yaw</label><input id="s-yaw" type="range" min="-45" max="45" step="0.1" value="0"><span class="valor"><input id="n-yaw" type="number" min="-45" max="45" step="0.1" value="0" inputmode="decimal" aria-label="Yaw em graus"><span>°</span></span><span class="desc" id="o-yaw"></span></div>
+      <div class="slider"><label for="s-roll">Roll</label><input id="s-roll" type="range" min="-45" max="45" step="0.1" value="0"><span class="valor"><input id="n-roll" type="number" min="-45" max="45" step="0.1" value="0" inputmode="decimal" aria-label="Roll em graus"><span>°</span></span><span class="desc" id="o-roll"></span></div>
+    </div>
+  </section>
+
+  <section class="card passos" aria-live="polite">
+    <div class="contador" id="contador"></div>
+    <h2 id="p-titulo"></h2>
+    <div class="texto" id="p-texto"></div>
+    <div class="nav">
+      <button id="ant" type="button">← Anterior</button>
+      <button id="prox" type="button" class="primario">Próximo →</button>
+    </div>
+  </section>
+
+  <section class="card matriz" aria-label="Matriz de rotação ao vivo">
+    <p class="titulo-sec">A matriz agora</p>
+    <div class="regra">
+      <div><b>Coluna = uma seta</b>vermelha (x), verde (y) ou azul (z)</div>
+      <div><b>Linha = uma pergunta</b>quanto a seta aponta naquela direção da câmera?</div>
+      <div><b>Casa = a resposta</b>de −1 a 1; 0 é nada, 1 é tudo</div>
+    </div>
+    <div class="tabela">
+      <table>
+        <thead><tr>
+          <th></th>
+          <th><span class="sw" style="background:var(--x)"></span>Vermelha (x)<small>lado da cabeça</small><span class="badge" id="b0">parada</span></th>
+          <th><span class="sw" style="background:var(--y)"></span>Verde (y)<small>topo da cabeça</small><span class="badge" id="b1">parada</span></th>
+          <th><span class="sw" style="background:var(--z)"></span>Azul (z)<small>nariz</small><span class="badge" id="b2">parada</span></th>
+        </tr></thead>
+        <tbody>
+          <tr><th>→ direita<span>da foto</span></th><td id="m00" class="c0"></td><td id="m01" class="c1"></td><td id="m02" class="c2"></td></tr>
+          <tr><th>↑ cima</th><td id="m10" class="c0"></td><td id="m11" class="c1"></td><td id="m12" class="c2"></td></tr>
+          <tr><th>◎ câmera<span>para fora da tela</span></th><td id="m20" class="c0"></td><td id="m21" class="c1"></td><td id="m22" class="c2"></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="leitura" id="leitura"></ul>
+  </section>
+</main>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const D = Math.PI / 180;
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ---------- matemática ----------
+const rx = a => { const c = Math.cos(a), s = Math.sin(a); return [[1,0,0],[0,c,-s],[0,s,c]]; };
+const ry = a => { const c = Math.cos(a), s = Math.sin(a); return [[c,0,s],[0,1,0],[-s,0,c]]; };
+const rz = a => { const c = Math.cos(a), s = Math.sin(a); return [[c,-s,0],[s,c,0],[0,0,1]]; };
+const mm = (A, B) => A.map(r => [0,1,2].map(j => r[0]*B[0][j] + r[1]*B[1][j] + r[2]*B[2][j]));
+const mv = (M, v) => M.map(r => r[0]*v[0] + r[1]*v[1] + r[2]*v[2]);
+const sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+const cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+const norm = v => { const l = Math.hypot(...v) || 1; return v.map(x => x / l); };
+// Convenção do projeto: pitch + = cima, yaw + = direita, roll + = inclinada para a direita.
+// No padrão do MediaPipe (OpenGL), pitch e roll têm o sinal invertido.
+const pose = (p, y, r) => mm(rz(-r * D), mm(ry(y * D), rx(-p * D)));
+
+// ---------- estado ----------
+const cur = { p: 0, y: 0, r: 0 };
+const view = { p: 18, y: 34 };
+let hl = new Set(), modoAuto = false, raf = 0, rafView = 0, frontal = false;
+
+// ---------- cabeça ----------
+const RX = 0.78, RY = 1.0, RZ = 0.86;
+const ell = (la, lo) => [RX*Math.cos(la)*Math.sin(lo), RY*Math.sin(la), RZ*Math.cos(la)*Math.cos(lo)];
+const surf = (x, y) => [x, y, RZ * Math.sqrt(Math.max(0, 1 - (x/RX)**2 - (y/RY)**2))];
+const mesh = [];
+{ const LAT = 16, LON = 32;
+  for (let i = 0; i < LAT; i++) for (let j = 0; j < LON; j++) {
+    const la0 = (-90 + 180*i/LAT)*D, la1 = (-90 + 180*(i+1)/LAT)*D, lo0 = 360*j/LON*D, lo1 = 360*(j+1)/LON*D;
+    const c = ell((la0+la1)/2, (lo0+lo1)/2);
+    mesh.push({ pts: [ell(la0,lo0), ell(la0,lo1), ell(la1,lo1), ell(la1,lo0)], c, n: norm([c[0]/RX**2, c[1]/RY**2, c[2]/RZ**2]) });
+  } }
+const nA = surf(-0.12, -0.2), nB = surf(0.12, -0.2), nC = surf(0, 0.14), nP = [0, -0.17, surf(0, -0.17)[2] + 0.3];
+const nose = [[nP, nA, nB], [nP, nB, nC], [nP, nC, nA]];
+const LIGHT = norm([-0.45, 0.55, 0.75]);
+
+// ---------- desenho ----------
+const cv = $("#cena"), ctx = cv.getContext("2d");
+let W = 0, H = 0, scale = 1, cx = 0, cy = 0;
+const DIST = 7;
+function resize() {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  W = r.width; H = r.height; cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  scale = Math.min(W, H) / 6.4; cx = W / 2; cy = H * 0.53;
+  draw();
+}
+new ResizeObserver(resize).observe(cv);
+const proj = v => { const s = scale * DIST / (DIST - v[2]); return [cx + v[0]*s, cy - v[1]*s, v[2], s]; };
+const hex = h => { h = h.replace("#", ""); return [0,2,4].map(i => parseInt(h.substr(i,2), 16)); };
+const mix = (a, b, t) => `rgb(${a.map((v,i) => Math.round(v + (b[i]-v)*t)).join(",")})`;
+function tokens() {
+  const s = getComputedStyle(document.documentElement), g = n => s.getPropertyValue(n).trim();
+  return { x: g("--x"), y: g("--y"), z: g("--z"), head: hex(g("--head")), dark: hex(g("--head-dark")), feat: g("--feature"), cam: g("--cam"), fg: g("--fg"), muted: g("--muted"), bg: g("--bg") };
+}
+
+function draw() {
+  if (!W) return;
+  const C = tokens();
+  ctx.clearRect(0, 0, W, H);
+  const R = pose(cur.p, cur.y, cur.r), V = mm(rx(view.p*D), ry(-view.y*D)), VR = mm(V, R);
+  const fv = p => mv(VR, p), wv = p => mv(V, p);
+  const segs = [];
+  [[[1,0,0],"direita"],[[0,1,0],"cima"],[[0,0,1],"câmera"]].forEach(([d, label]) =>
+    segs.push({ cam: true, label, s: wv(d.map(v => v*1.15)), e: wv(d.map(v => v*2.7)) }));
+  [[[1,0,0], RX, C.x, "vermelha (x)"], [[0,1,0], RY, C.y, "verde (y)"], [[0,0,1], RZ + 0.34, C.z, "azul (z)"]].forEach(([d, r0, color, label]) =>
+    segs.push({ cam: false, label, color, s: fv(d.map(v => v*r0)), e: fv(d.map(v => v*(r0 + 0.75))) }));
+  const mid = g => (g.s[2] + g.e[2]) / 2;
+  segs.filter(g => mid(g) < 0).sort((a,b) => mid(a) - mid(b)).forEach(g => seg(g, C));
+  head(fv, C);
+  segs.filter(g => mid(g) >= 0).sort((a,b) => mid(a) - mid(b)).forEach(g => seg(g, C));
+}
+
+function shade(C, n) { return mix(C.dark, C.head, 0.22 + 0.78 * Math.max(0, dot(n, LIGHT))); }
+
+function head(fv, C) {
+  const faces = [];
+  for (const q of mesh) {
+    const n = fv(q.n); if (n[2] <= -0.02) continue;
+    faces.push({ P: q.pts.map(p => proj(fv(p))), z: fv(q.c)[2], col: shade(C, n) });
+  }
+  faces.sort((a, b) => a.z - b.z);
+  for (const f of faces) {
+    ctx.beginPath(); f.P.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath();
+    ctx.fillStyle = f.col; ctx.fill(); ctx.strokeStyle = f.col; ctx.lineWidth = 0.8; ctx.stroke();
+  }
+  const visivel = p => fv(norm([p[0]/RX**2, p[1]/RY**2, p[2]/RZ**2]))[2] > 0.05;
+  ctx.lineCap = "round"; ctx.strokeStyle = C.feat; ctx.fillStyle = C.feat;
+  const linha = (pts, w) => { const ok = pts.filter(visivel); if (ok.length < 2) return; ctx.lineWidth = w; ctx.beginPath(); ok.map(p => proj(fv(p))).forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); };
+  for (const s of [-1, 1]) {
+    const eye = ell(14*D, s*24*D);
+    if (visivel(eye)) { const p = proj(fv(eye)); ctx.beginPath(); ctx.arc(p[0], p[1], 0.065*p[3], 0, 7); ctx.fill(); }
+    const brow = []; for (let k = 12; k <= 36; k += 4) brow.push(ell((27 + (k > 24 ? -1 : 1) * 0)*D, s*k*D));
+    linha(brow, Math.max(2, 0.035*scale));
+  }
+  const mouth = []; for (let k = -22; k <= 22; k += 4) mouth.push(ell((-33 - 3*Math.cos(k/22*Math.PI/2))*D, k*D));
+  linha(mouth, Math.max(2, 0.04*scale));
+  if (fv([0,0,1])[2] > -0.35) {
+    const tris = nose.map(t => {
+      let n = norm(cross(sub(t[1], t[0]), sub(t[2], t[0])));
+      const cen = [0,1,2].map(i => (t[0][i]+t[1][i]+t[2][i])/3);
+      if (dot(n, sub(cen, [0,-0.1,0.4])) < 0) n = n.map(x => -x);
+      return { P: t.map(p => proj(fv(p))), n: fv(n), z: fv(cen)[2] };
+    }).filter(t => t.n[2] > 0).sort((a, b) => a.z - b.z);
+    for (const t of tris) { ctx.beginPath(); t.P.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); const c = shade(C, t.n); ctx.fillStyle = c; ctx.fill(); ctx.strokeStyle = c; ctx.lineWidth = 0.8; ctx.stroke(); }
+  }
+}
+
+function texto(t, x, y, color, C, align) {
+  ctx.textAlign = align || "center";
+  ctx.lineWidth = 5; ctx.lineJoin = "round"; ctx.strokeStyle = C.bg; ctx.strokeText(t, x, y);
+  ctx.fillStyle = color; ctx.fillText(t, x, y);
+}
+const alinhar = dx => dx > 0.3 ? "left" : dx < -0.3 ? "right" : "center";
+function seg(g, C) {
+  const a = proj(g.s), b = proj(g.e);
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
+  ctx.save();
+  ctx.font = `600 ${Math.max(12, Math.round(scale*0.17))}px Inter, system-ui, sans-serif`;
+  ctx.textBaseline = "middle";
+  const ux = L > 0.5 ? dx / L : 0, uy = L > 0.5 ? dy / L : -1;
+  if (g.cam) {
+    if (L < 30) { // eixo apontando para quem olha: estamos olhando pela câmera
+      if (g.label === "câmera") texto("◎ câmera: você está olhando por ela", 12, 16, C.muted, C, "left");
+      ctx.restore(); return;
+    }
+    ctx.setLineDash([5, 5]); ctx.strokeStyle = C.cam; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); ctx.setLineDash([]);
+    if (g.label === "câmera") {
+      const s = Math.max(14, scale*0.2), ix = b[0] + ux*s*0.9, iy = b[1] + uy*s*0.9;
+      ctx.fillStyle = C.cam; ctx.beginPath(); ctx.roundRect(ix - s*0.7, iy - s*0.45, s*1.4, s*0.9, 3); ctx.fill();
+      ctx.fillStyle = C.bg; ctx.beginPath(); ctx.arc(ix, iy, s*0.27, 0, 7); ctx.fill();
+      texto("câmera", ix, iy + s*0.95, C.muted, C);
+    } else {
+      texto(g.label, b[0] + ux*10, b[1] + uy*10 - (Math.abs(ux) < 0.3 ? 4 : 0), C.muted, C, alinhar(ux));
+    }
+  } else {
+    ctx.strokeStyle = g.color; ctx.fillStyle = g.color; ctx.lineCap = "round";
+    if (L < 10) { // seta apontando direto para quem olha: vira um alvo
+      const r = Math.max(9, scale*0.11);
+      ctx.beginPath(); ctx.arc(b[0], b[1], r, 0, 7); ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.beginPath(); ctx.arc(b[0], b[1], r*0.35, 0, 7); ctx.fill();
+      texto(g.label, b[0] + r + 8, b[1] + r + 4, g.color, C, "left");
+    } else {
+      const h = Math.min(16, L*0.45);
+      ctx.lineWidth = Math.max(3, scale*0.05);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0] - ux*h*0.8, b[1] - uy*h*0.8); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(b[0], b[1]); ctx.lineTo(b[0] - ux*h - uy*h*0.55, b[1] - uy*h + ux*h*0.55); ctx.lineTo(b[0] - ux*h + uy*h*0.55, b[1] - uy*h - ux*h*0.55); ctx.closePath(); ctx.fill();
+      // rótulo ao lado da seta (perpendicular), longe da linha tracejada que continua à frente
+      let px = -uy, py = ux;
+      if (Math.abs(py) < 0.25) { if (px < 0) { px = -px; py = -py; } } else if (py > 0) { px = -px; py = -py; }
+      const mx = b[0] - ux*L*0.35, my = b[1] - uy*L*0.35;
+      texto(g.label, mx + px*18, my + py*18, g.color, C, alinhar(px));
+    }
+  }
+  ctx.restore();
+}
+
+// ---------- matriz e textos ----------
+const fmt = v => { if (Math.abs(v) < 0.0005) v = 0; return (v < 0 ? "−" : " ") + Math.abs(v).toFixed(3); };
+const cells = [0,1,2].map(i => [0,1,2].map(j => {
+  const td = $(`#m${i}${j}`); td.innerHTML = '<span class="num"></span><span class="bar"><i></i></span>';
+  return { num: td.querySelector(".num"), bar: td.querySelector("i"), td };
+}));
+const NOMES = [["Vermelha (x)", "lado", "cx"], ["Verde (y)", "topo da cabeça", "cy"], ["Azul (z)", "nariz", "cz"]];
+const DIRS = [["para a direita", "para a esquerda"], ["para cima", "para baixo"], ["para a câmera", "para longe da câmera"]];
+function frase(col) {
+  const parts = col.map((v, i) => ({ v, i, a: Math.abs(v) })).filter(o => o.a >= 0.05).sort((a, b) => b.a - a.a)
+    .map(o => (o.a >= 0.995 ? "toda" : o.a >= 0.9 ? "quase toda" : o.a >= 0.35 ? "bastante" : "um pouco") + " " + DIRS[o.i][o.v >= 0 ? 0 : 1]);
+  return parts.length > 1 ? parts.slice(0, -1).join(", ") + " e " + parts.at(-1) : parts[0];
+}
+const desc = {
+  p: v => v < -0.5 ? "cabeça para baixo" : v > 0.5 ? "cabeça para cima" : "de frente",
+  y: v => v < -0.5 ? "rosto à esquerda" : v > 0.5 ? "rosto à direita" : "de frente",
+  r: v => v < -0.5 ? "inclinada à esquerda" : v > 0.5 ? "inclinada à direita" : "reta",
+};
+const sl = { p: $("#s-pitch"), y: $("#s-yaw"), r: $("#s-roll") }, out = { p: $("#o-pitch"), y: $("#o-yaw"), r: $("#o-roll") }, num = { p: $("#n-pitch"), y: $("#n-yaw"), r: $("#n-roll") };
+function sync() {
+  const M = pose(cur.p, cur.y, cur.r);
+  for (const k of ["p", "y", "r"]) {
+    sl[k].value = cur[k].toFixed(1);
+    const v = Math.abs(cur[k]) < 0.05 ? 0 : cur[k];
+    if (document.activeElement !== num[k]) num[k].value = v.toFixed(1);
+    out[k].textContent = desc[k](v);
+  }
+  const auto = new Set();
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+    const v = M[i][j], c = cells[i][j], w = Math.min(1, Math.abs(v)) * 50;
+    c.num.textContent = fmt(v);
+    c.bar.style.width = w + "%"; c.bar.style.left = (v >= 0 ? 50 : 50 - w) + "%";
+    if (Math.abs(v - (i === j ? 1 : 0)) > 0.03) auto.add(`${i}${j}`);
+  }
+  const marcar = modoAuto ? auto : hl;
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) cells[i][j].td.classList.toggle("hl", marcar.has(`${i}${j}`));
+  for (let j = 0; j < 3; j++) $(`#b${j}`).classList.toggle("on", [0,1,2].every(i => Math.abs(M[i][j] - (i === j ? 1 : 0)) < 0.004));
+  $("#leitura").innerHTML = [0,1,2].map(j => {
+    const col = [M[0][j], M[1][j], M[2][j]];
+    return `<li><span class="${NOMES[j][2]}">${NOMES[j][0]}</span> (${NOMES[j][1]}): aponta ${frase(col)}.</li>`;
+  }).join("");
+  draw();
+}
+
+// ---------- animação ----------
+const ease = k => k < 0.5 ? 2*k*k : 1 - Math.pow(-2*k + 2, 2) / 2;
+function animateTo(t) {
+  cancelAnimationFrame(raf);
+  if (reduced) { Object.assign(cur, t); sync(); return; }
+  const from = { ...cur }, t0 = performance.now(), dur = 1100;
+  const f = now => { const k = ease(Math.min(1, (now - t0) / dur)); for (const key of ["p","y","r"]) cur[key] = from[key] + (t[key] - from[key]) * k; sync(); if (k < 1) raf = requestAnimationFrame(f); };
+  raf = requestAnimationFrame(f);
+}
+function viewTo(t) {
+  cancelAnimationFrame(rafView);
+  if (reduced) { Object.assign(view, t); draw(); return; }
+  const from = { ...view }, t0 = performance.now(), dur = 800;
+  const f = now => { const k = ease(Math.min(1, (now - t0) / dur)); view.p = from.p + (t.p - from.p)*k; view.y = from.y + (t.y - from.y)*k; draw(); if (k < 1) rafView = requestAnimationFrame(f); };
+  rafView = requestAnimationFrame(f);
+}
+
+// ---------- passos ----------
+const M = (a, b) => `<span class="mark">[${a}, ${b}]</span>`;
+const PASSOS = [
+  { t: "Três setas presas na cabeça", s: { p: 0, y: 0, r: 0 }, hl: [],
+    h: `<p>Imagine três setas grudadas na cabeça. Elas giram junto com ela.</p>
+        <p><span class="cx">Vermelha (x)</span>: aponta para o lado direito da foto.<br><span class="cy">Verde (y)</span>: sai pelo topo da cabeça.<br><span class="cz">Azul (z)</span>: sai pela ponta do nariz, em direção à câmera.</p>
+        <p>As linhas <b>cinza tracejadas</b> nunca se mexem. Elas mostram as três direções da câmera: <b>direita</b>, <b>cima</b> e <b>câmera</b> (para fora da tela, na sua direção).</p>` },
+  { t: "Cada seta vira uma coluna de 3 números", s: { p: 0, y: 0, r: 0 }, hl: ["02", "12", "22"],
+    h: `<p>Para descrever uma seta, a matriz faz três perguntas: quanto ela aponta <b>para a direita</b>? E <b>para cima</b>? E <b>para a câmera</b>?</p>
+        <p>As três respostas ficam empilhadas numa coluna. Com o rosto de frente, a seta <span class="cz">azul (z)</span> responde <b>0, 0 e 1</b>: nada para o lado, nada para cima, tudo para a câmera.</p>
+        <p>São três setas, então são três colunas. Cada linha é uma das perguntas.</p>` },
+  { t: "Pitch: abaixar a cabeça", s: { p: -30, y: 0, r: 0 }, hl: ["12", "21"],
+    h: `<p>A cabeça abaixa 30°. A seta <span class="cx">vermelha (x)</span> não se mexe, porque o giro acontece em volta dela, como uma dobradiça. Por isso a coluna vermelha continua 1, 0, 0.</p>
+        <p>A <span class="cz">azul (z)</span> (nariz) passa a apontar para baixo: na casa ${M("cima", "azul (z)")} aparece <b>−0.500</b>.</p>
+        <p>A <span class="cy">verde (y)</span> (topo da cabeça) tomba para a frente: na casa ${M("câmera", "verde (y)")} aparece <b>+0.500</b>.</p>
+        <p>Essas duas casas mostram o <b>pitch</b>.</p>` },
+  { t: "Yaw: virar o rosto para o lado", s: { p: 0, y: 30, r: 0 }, hl: ["02", "20"],
+    h: `<p>O rosto vira 30° para a direita. Agora quem fica parada é a <span class="cy">verde (y)</span>, porque o giro acontece em volta do pescoço.</p>
+        <p>A <span class="cz">azul (z)</span> (nariz) passa a apontar para a direita: ${M("direita", "azul (z)")} = <b>+0.500</b>.</p>
+        <p>A <span class="cx">vermelha (x)</span> vai para longe da câmera: ${M("câmera", "vermelha (x)")} = <b>−0.500</b>.</p>
+        <p>Essas duas casas mostram o <b>yaw</b>.</p>` },
+  { t: "Roll: encostar a orelha no ombro", s: { p: 0, y: 0, r: 30 }, hl: ["01", "10"],
+    h: `<p>A cabeça inclina 30° para a direita. Agora quem fica parada é a <span class="cz">azul (z)</span>, porque o giro acontece em volta do nariz.</p>
+        <p>A <span class="cy">verde (y)</span> (topo da cabeça) tomba para a direita: ${M("direita", "verde (y)")} = <b>+0.500</b>.</p>
+        <p>A <span class="cx">vermelha (x)</span> desce: ${M("cima", "vermelha (x)")} = <b>−0.500</b>.</p>
+        <p>Essas duas casas mostram o <b>roll</b>.</p>` },
+  { t: "A regra dos três giros", s: { p: 0, y: 0, r: 0 }, hl: [],
+    h: `<p>Em cada giro, <b>uma seta fica parada</b> (é o eixo do giro) e <b>as outras duas se inclinam</b>.</p>
+        <table class="giros">
+          <thead><tr><th>Giro</th><th>Seta parada</th><th>Casas que mudam</th></tr></thead>
+          <tbody>
+            <tr><td><b>Pitch</b></td><td><span class="cx">vermelha (x)</span></td><td>[cima, azul (z)] e [câmera, verde (y)]</td></tr>
+            <tr><td><b>Yaw</b></td><td><span class="cy">verde (y)</span></td><td>[direita, azul (z)] e [câmera, vermelha (x)]</td></tr>
+            <tr><td><b>Roll</b></td><td><span class="cz">azul (z)</span></td><td>[direita, verde (y)] e [cima, vermelha (x)]</td></tr>
+          </tbody>
+        </table>
+        <p>Teste com a sua cabeça: ao fazer "sim", a linha de uma orelha à outra não sai do lugar. É a seta <span class="cx">vermelha (x)</span> parada.</p>` },
+  { t: "A matriz da image_01", s: { p: -13, y: -1.2, r: 0.7 }, hl: ["12", "21"],
+    h: `<p>Estes são os ângulos medidos na image_01: cabeça <b>13° para baixo</b>, quase sem yaw e sem roll.</p>
+        <p>Compare a matriz desta página com a parte 3x3 que o seu script imprimiu:</p>
+        <pre>[[ 1.000   0.007  -0.022]
+ [-0.011   0.974  -0.224]
+ [ 0.020   0.225   0.974]]</pre>
+        <p>É o mesmo padrão do pitch: só ${M("cima", "azul (z)")} e ${M("câmera", "verde (y)")} fogem bastante de 0 e 1.</p>` },
+  { t: "Agora mexa você", s: null, hl: null,
+    h: `<p>Use os controles <b>Pitch</b>, <b>Yaw</b> e <b>Roll</b> embaixo da cena. As casas que mudam ficam destacadas, e a lista embaixo da matriz traduz cada coluna em palavras.</p>
+        <p>Combine dois giros e repare que várias casas mudam ao mesmo tempo. Por isso o código não lê o ângulo de uma casa só. Ele usa fórmulas que separam os três giros. Esse é o próximo passo do script.</p>` },
+];
+let atual = 0;
+function mostrar(i) {
+  atual = i; const p = PASSOS[i];
+  $("#contador").textContent = `Passo ${i + 1} de ${PASSOS.length}`;
+  $("#p-titulo").textContent = p.t; $("#p-texto").innerHTML = p.h;
+  $("#ant").disabled = i === 0; $("#prox").disabled = i === PASSOS.length - 1;
+  if (p.hl) { hl = new Set(p.hl); modoAuto = false; } else modoAuto = true;
+  if (p.s) animateTo(p.s); else sync();
+}
+$("#ant").addEventListener("click", () => mostrar(Math.max(0, atual - 1)));
+$("#prox").addEventListener("click", () => mostrar(Math.min(PASSOS.length - 1, atual + 1)));
+for (const k of ["p", "y", "r"]) {
+  sl[k].addEventListener("input", () => { cancelAnimationFrame(raf); cur[k] = parseFloat(sl[k].value); modoAuto = true; sync(); });
+  num[k].addEventListener("input", () => {
+    const v = parseFloat(num[k].value.replace(",", "."));
+    if (Number.isNaN(v)) return;
+    cancelAnimationFrame(raf); cur[k] = Math.max(-45, Math.min(45, v)); modoAuto = true; sync();
+  });
+  num[k].addEventListener("blur", () => { num[k].value = cur[k].toFixed(1); });
+  num[k].addEventListener("keydown", e => { if (e.key === "Enter") num[k].blur(); });
+}
+
+// ---------- vista ----------
+const btnVista = $("#vista");
+btnVista.addEventListener("click", () => {
+  frontal = !frontal;
+  viewTo(frontal ? { p: 0, y: 0 } : { p: 18, y: 34 });
+  btnVista.textContent = frontal ? "Ver de lado" : "Ver como a câmera vê";
+});
+let drag = null;
+cv.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); cancelAnimationFrame(rafView); });
+cv.addEventListener("pointermove", e => {
+  if (!drag) return;
+  view.y = Math.max(-80, Math.min(80, view.y - (e.clientX - drag.x) * 0.45));
+  view.p = Math.max(-60, Math.min(70, view.p + (e.clientY - drag.y) * 0.45));
+  drag = { x: e.clientX, y: e.clientY }; draw();
+});
+const solta = () => { drag = null; };
+cv.addEventListener("pointerup", solta); cv.addEventListener("pointercancel", solta);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+document.fonts && document.fonts.ready.then(draw);
+
+mostrar(0);
+})();
+</script>
+</body>
+</html>

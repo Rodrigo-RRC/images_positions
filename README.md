@@ -140,18 +140,32 @@ if not result.face_landmarks:          # lista vazia conta como falso em Python
 | com um rosto    | 478 pontos detectados |
 | sem rosto       | `REPROVADA: nenhum rosto encontrado na imagem.` |
 
-## Passo 4: Calcular pitch, yaw e roll *(em andamento)*
+## Passo 4: Calcular pitch, yaw e roll
 
-Script: `scripts/02_calcular_angulos.py`.
+Script: [`scripts/02_calcular_angulos.py`](scripts/02_calcular_angulos.py). Ele percorre todas as imagens `.jpg` de `data/`:
 
-Para obter a pose, ativamos uma opção nova no detector:
-
-```python
-output_facial_transformation_matrixes=True
+```bash
+python scripts/02_calcular_angulos.py
 ```
 
-Com ela, além dos 478 pontos, o modelo devolve uma **matriz de pose 4x4** por rosto (`result.facial_transformation_matrixes`).
-A matriz diz quanto um rosto 3D padrão teve que ser **girado** e **deslocado** para coincidir com o rosto da foto:
+```text
+image_01.jpg: pitch=-13.0°  yaw=-1.2°  roll=0.7°
+image_02.jpg: pitch=-5.3°  yaw=1.9°  roll=-0.3°
+image_03.jpg: pitch=3.4°  yaw=2.7°  roll=-1.4°
+sem_rosto.jpg: REPROVADA: nenhum rosto encontrado na imagem.
+```
+
+Como ler o resultado da `image_01.jpg`: a cabeça está **13° para baixo**, e yaw e roll ficam em torno de 1°, o que na prática é um rosto de frente (essa variação está dentro da margem de erro do modelo).
+
+### 4.1 Da imagem à matriz de pose
+
+O MediaPipe não devolve os ângulos prontos. Ele devolve uma **matriz de pose 4x4** por rosto, desde que a opção seja ativada no detector:
+
+```python
+output_facial_transformation_matrixes=True   # o padrão é False
+```
+
+A matriz fica em `result.facial_transformation_matrixes[0]` e diz quanto um rosto 3D padrão (o *canonical face model*) teve que ser **girado** e **deslocado** para coincidir com o rosto da foto:
 
 ```text
 ┌─ rotação (3x3) ─────┐ ┌ translação ┐
@@ -162,14 +176,22 @@ A matriz diz quanto um rosto 3D padrão teve que ser **girado** e **deslocado** 
 ```
 <sub>Matriz da `image_01.jpg`, impressa pelo script.</sub>
 
-### A matriz de rotação, em desenho
+Para a orientação da cabeça interessa só o bloco de **rotação**, que o código separa com um fatiamento do NumPy:
+
+```python
+r = result.facial_transformation_matrixes[0][:3, :3]   # 3 primeiras linhas e 3 primeiras colunas
+```
+
+> **Por que a matriz do MediaPipe, e não `cv2.solvePnP`?** A abordagem clássica estima a pose com o `solvePnP` do OpenCV, a partir de uns 6 pontos do rosto, de um modelo 3D genérico e de uma câmera estimada. A matriz do MediaPipe já é calculada pelo próprio modelo, usando os 478 pontos, então o código fica menor e não depende de chutar os parâmetros da câmera.
+
+### 4.2 A matriz de rotação, em desenho
 
 👉 **[Abrir a animação interativa](https://claude.ai/artifact/RApU88BF746By99rL7knf4)** (também em [`docs/matriz-rotacao.html`](docs/matriz-rotacao.html): baixe o arquivo e abra no navegador)
 
 Uma cabeça em 3D gira na tela e a matriz muda ao vivo, em 8 passos. A ideia central:
 
 - Três setas ficam presas na cabeça: **vermelha (x)**, no lado; **verde (y)**, no topo da cabeça; e **azul (z)**, no nariz.
-- **Cada coluna** da matriz é uma seta. **Cada linha** pergunta quanto essa seta aponta para a direita, para cima ou para a câmera.
+- **Cada coluna** da matriz é uma seta. **Cada linha** pergunta quanto essa seta aponta para a direita da imagem, para cima ou para a câmera.
 - Em cada giro, **uma seta fica parada** (é o eixo do giro) e as outras duas se inclinam:
 
 | Movimento | Seta parada | Casas que mudam |
@@ -178,7 +200,70 @@ Uma cabeça em 3D gira na tela e a matriz muda ao vivo, em 8 passos. A ideia cen
 | **Yaw** (fazer "não") | verde (y) | [direita, azul (z)] e [câmera, vermelha (x)] |
 | **Roll** (orelha no ombro) | azul (z) | [direita, verde (y)] e [cima, vermelha (x)] |
 
-Na `image_01.jpg`, só as casas do pitch fogem de 0 e 1 (−0.224 e 0.225): a cabeça está cerca de **13° para baixo**.
+Na `image_01.jpg`, só as casas do pitch fogem de 0 e 1 (−0.224 e 0.225): a cabeça está cerca de 13° para baixo.
+
+### 4.3 Da matriz aos ângulos
+
+No código, cada casa é lida como `r[linha, coluna]`, contando a partir de 0:
+
+| | coluna 0: vermelha (x) | coluna 1: verde (y) | coluna 2: azul (z) |
+|---|---|---|---|
+| **linha 0: direita** | `r[0, 0]` | `r[0, 1]` | `r[0, 2]` |
+| **linha 1: cima** | `r[1, 0]` | `r[1, 1]` | `r[1, 2]` |
+| **linha 2: câmera** | `r[2, 0]` | `r[2, 1]` | `r[2, 2]` |
+
+Cada ângulo sai de duas casas: uma faz o papel do **seno** e a outra do **cosseno** do giro. A função `math.atan2(seno, cosseno)` faz a conta ao contrário e devolve o ângulo:
+
+```python
+pitch = -math.degrees(math.atan2(r[2, 1], r[2, 2]))
+yaw = math.degrees(math.atan2(-r[2, 0], math.hypot(r[0, 0], r[1, 0])))
+roll = -math.degrees(math.atan2(r[1, 0], r[0, 0]))
+```
+
+| Ângulo | Seno (quanto inclinou) | Cosseno (quanto continua no lugar) |
+|--------|------------------------|------------------------------------|
+| Pitch | `r[2, 1]`: o topo da cabeça vem para a câmera | `r[2, 2]`: o nariz continua apontando para a câmera |
+| Yaw | `-r[2, 0]`: o lado da cabeça se afasta da câmera | `hypot(r[0, 0], r[1, 0])`, ou seja, √(r[0,0]² + r[1,0]²) |
+| Roll | `r[1, 0]`: o lado da cabeça sobe ou desce | `r[0, 0]`: o lado continua apontando para a direita |
+
+- **Por que `atan2` e não o seno de uma casa só?** Quando os três giros acontecem juntos, eles se misturam nas casas. Usar duas casas mantém o resultado correto e com o sinal certo em qualquer combinação.
+- `math.degrees` converte de radianos (o que o `atan2` devolve) para graus.
+- A ordem dos giros é **R = Rz(roll) · Ry(yaw) · Rx(pitch)**, a decomposição mais usada para pose de cabeça.
+
+### 4.4 Ajuste de sinais
+
+O MediaPipe usa os eixos do padrão **OpenGL**: x para a direita da imagem, y para cima e z apontando para a câmera.
+Nesse sistema, dois ângulos saem com o sinal oposto ao da [convenção do projeto](#objetivo), por isso levam um `-` no código:
+
+| Ângulo | Sinal "natural" da matriz | Convenção do projeto | No código |
+|--------|---------------------------|----------------------|-----------|
+| Pitch | + = cabeça para baixo | + = cabeça para cima | inverte (`-`) |
+| Yaw | + = rosto para a direita | + = rosto para a direita | mantém |
+| Roll | + = inclinada para a esquerda | + = inclinada para a direita | inverte (`-`) |
+
+**Decisão:** manter a convenção do projeto em vez do sinal "natural" da matriz. Ela é mais intuitiva (para cima e para a direita são positivos) e não depende da biblioteca: se o MediaPipe for trocado por outro modelo, os limites do guardrail continuam valendo.
+Esquerda e direita são sempre **de quem olha a imagem**, porque é o que o programa enxerga: ele não sabe qual é a direita da pessoa, só onde estão os pixels.
+
+**Como os sinais foram conferidos:**
+
+| Ângulo | Teste |
+|--------|-------|
+| Roll | As fotos foram giradas em ±20° com o OpenCV. O script devolveu ±20° (erro ≤ 2°). |
+| Yaw | As fotos foram espelhadas, o que inverte o yaw. Nos 6 casos (3 fotos × original e espelhada), yaw positivo coincidiu com o nariz mais perto da bochecha direita da imagem. |
+| Pitch | Pitch mais negativo coincidiu com o nariz mais perto do queixo (cabeça baixa). A `image_01.jpg`, de queixo levemente abaixado, dá −13°. |
+
+> As três fotos de teste são quase frontais. Ângulos grandes serão avaliados no passo de precisão, contra um dataset com ângulos reais.
+
+### 4.5 Uma imagem ou a pasta inteira
+
+O script processa todas as imagens de `data/` num laço:
+
+```python
+for caminho in sorted(Path("data").glob("*.jpg")):
+```
+
+- `Path("data").glob("*.jpg")` lista os arquivos `.jpg` da pasta, e `sorted` garante sempre a mesma ordem.
+- Se a imagem não tem rosto, o script imprime o motivo e usa `continue` para seguir para a próxima, sem quebrar o laço.
 
 ---
 
@@ -197,7 +282,7 @@ images_positions/
 - [x] Ambiente Python e dependências
 - [x] Download e verificação do modelo
 - [x] Detectar o rosto e os pontos faciais (*landmarks*)
-- [ ] Calcular pitch, yaw e roll
+- [x] Calcular pitch, yaw e roll
 - [ ] Definir os limites por ângulo e validar (guardrail)
 - [ ] Medir a precisão contra dataset com ângulos reais (MAE / RMSE)
 - [ ] Interface para o usuário enviar imagens

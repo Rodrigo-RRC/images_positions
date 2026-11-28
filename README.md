@@ -265,6 +265,83 @@ for caminho in sorted(Path("data").glob("*.jpg")):
 - `Path("data").glob("*.jpg")` lista os arquivos `.jpg` da pasta, e `sorted` garante sempre a mesma ordem.
 - Se a imagem não tem rosto, o script imprime o motivo e usa `continue` para seguir para a próxima, sem quebrar o laço.
 
+## Passo 5: Benchmark de precisão *(planejamento)*
+
+Antes de definir os limites do guardrail, é preciso saber **quanto o MediaPipe erra**.
+Um limite de ±5° só faz sentido se o modelo medir os ângulos com erro bem menor que 5°: se ele erra 4°, uma foto com pitch real de 8° pode ser medida como 4° e aprovada por engano.
+Por isso o benchmark vem **antes** do guardrail.
+
+### 5.1 O que o benchmark precisa responder
+
+| Pergunta | Como responder |
+|----------|----------------|
+| Quanto o MediaPipe erra em cada ângulo? | **MAE** e **RMSE** de pitch, yaw e roll |
+| Em que faixa de ângulos ele é confiável? | Gráfico de **erro × ângulo real**. O esperado é errar pouco perto de 0° e mais com a cabeça muito virada. |
+| O guardrail decide certo? | Comparar a decisão (aprovar/reprovar) tomada com os ângulos medidos e a tomada com os ângulos reais: quantas fotos foram **aprovadas por engano** e quantas foram **reprovadas por engano** |
+
+A terceira pergunta é a que mais importa para um guardrail: o objetivo final não é medir ângulos, é **decidir certo**.
+
+### 5.2 Métricas
+
+Para cada imagem *i*, o erro é a diferença entre o ângulo medido pelo MediaPipe e o ângulo real anotado no dataset:
+
+$$\text{MAE} = \frac{1}{N}\sum_{i=1}^{N} \left|\,\text{medido}_i - \text{real}_i\,\right| \qquad \text{RMSE} = \sqrt{\frac{1}{N}\sum_{i=1}^{N} \left(\text{medido}_i - \text{real}_i\right)^2}$$
+
+| Métrica | Leitura | Por que usar |
+|---------|---------|--------------|
+| **MAE** (erro absoluto médio) | "em média, erra X graus" | É a métrica padrão nos artigos de pose de cabeça, então o resultado fica comparável com modelos publicados |
+| **RMSE** (raiz do erro quadrático médio) | pesa mais os erros grandes | Se o RMSE for bem maior que o MAE, existem erros grandes ocasionais, que são os que mais prejudicam o guardrail |
+
+> **Por que não usar o erro quadrático total (soma dos quadrados)?** Ele cresce com o número de imagens: 4.000 fotos dariam o dobro do erro de 2.000, mesmo com o modelo igual. MAE e RMSE são médias, então dá para comparar datasets de tamanhos diferentes.
+
+### 5.3 Escolha do dataset
+
+| | **AFLW2000-3D** ✅ escolhido | **BIWI Kinect Head Pose** |
+|---|---|---|
+| Pessoas diferentes | cerca de 2.000 (fotos variadas da internet) | 20 (gravadas em laboratório) |
+| Imagens | 2.000 fotos independentes | cerca de 15.000 quadros de vídeo, muitos quase iguais entre si |
+| Origem dos ângulos | modelo 3D ajustado a cada foto | sensor de profundidade (Kinect) |
+| Comparável com artigos | sim, é o benchmark mais usado | sim |
+| Licença | pesquisa não comercial | pesquisa não comercial |
+
+**Decisão:** começar pelo **AFLW2000-3D**, pela diversidade de pessoas e por ser o benchmark mais citado. O BIWI pode entrar depois como segunda opinião: resultados parecidos nos dois tornam a conclusão mais forte.
+
+**Limitação conhecida:** com a cabeça muito virada (acima de ~60°), as anotações do AFLW2000-3D ficam menos confiáveis. Isso pesa pouco aqui, porque os limites do guardrail ficam entre 5° e 20°.
+
+**Cuidado:** os ângulos do dataset seguem a convenção de sinais dele, e não necessariamente a [convenção do projeto](#objetivo). A conversão será conferida antes de calcular qualquer métrica.
+
+### 5.4 Licenças e uso dos dados
+
+Uma licença de dataset pode restringir duas coisas diferentes:
+
+| Restrição | O que proíbe | AFLW2000-3D e BIWI |
+|-----------|--------------|--------------------|
+| **Redistribuição** | publicar ou compartilhar cópias das imagens (GitHub, Drive, site) | proibida |
+| **Uso comercial** | usar os dados num produto ou serviço pago, inclusive só para testá-lo | proibido: licença só para pesquisa |
+
+Consequências para este projeto:
+
+- **Pode ser publicado:** o código, as métricas, os gráficos e as conclusões, como fazem os artigos científicos.
+- **Não pode ser publicado:** as imagens dos datasets, nem prints com rostos delas. Os exemplos visuais do README usam apenas fotos próprias. A pasta `data/` fica fora do Git (`.gitignore`).
+- **Uso comercial futuro:** exigiria refazer o benchmark com um dataset de licença comercial ou com fotos próprias tiradas com consentimento. A LGPD classifica dado biométrico como **dado pessoal sensível** (art. 5º, II), o que exige consentimento específico.
+- **Código e modelo:** o MediaPipe e o modelo `face_landmarker.task` usam a licença Apache 2.0, que permite uso comercial. A restrição está só nos datasets.
+
+> Esta seção resume as licenças para orientar o projeto. Não é um parecer jurídico.
+
+### 5.5 Limites de referência para o guardrail
+
+O guardrail terá dois perfis. Os valores de partida vêm de normas e serão revistos com o resultado do benchmark:
+
+| Perfil | Pitch | Yaw | Roll | Referência |
+|--------|-------|-----|------|------------|
+| **documento** (passaporte, RG) | ±5° | ±5° | ±8° | ISO/IEC 19794-5 (com *corrigendum* que levou o roll a ±8°) e ISO/IEC 39794-5:2019, Anexo D.2, adotadas pela ICAO no Doc 9303 |
+| **cadastro** (reconhecimento facial) | ±15° | ±15° | ±20° | rascunho da ISO/IEC 25447, para captura em condições menos controladas (ainda não é norma adotada) |
+
+- Na prática, fornecedores usam valores próprios. A IDEMIA, por exemplo, apresentou limites operacionais de yaw 10,3°, pitch 15° e roll 8°.
+- Um documento de trabalho da ICAO de 2017 registra que a tecnologia de controle de qualidade da época **não conseguia confirmar a pose com precisão de ±5°**. É exatamente o que o benchmark vai medir no MediaPipe.
+
+> Os valores das normas vêm de fontes secundárias (NIST e documentos de trabalho da ICAO), porque o texto das normas ISO é pago. As fontes estão em [Referências](#referências).
+
 ---
 
 ## Estrutura
@@ -283,8 +360,8 @@ images_positions/
 - [x] Download e verificação do modelo
 - [x] Detectar o rosto e os pontos faciais (*landmarks*)
 - [x] Calcular pitch, yaw e roll
-- [ ] Definir os limites por ângulo e validar (guardrail)
-- [ ] Medir a precisão contra dataset com ângulos reais (MAE / RMSE)
+- [ ] Medir a precisão contra dataset com ângulos reais (AFLW2000-3D; MAE / RMSE)
+- [ ] Guardrail com perfis *documento* e *cadastro*, limites revistos pelo benchmark
 - [ ] Interface para o usuário enviar imagens
 - [ ] Suporte a vídeo
 - [ ] Testes automatizados
@@ -294,6 +371,14 @@ images_positions/
 - [MediaPipe Face Landmarker: visão geral](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker)
 - [MediaPipe Face Landmarker: guia Python](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/python)
 - [MediaPipe API Python: `FaceLandmarkerResult`](https://developers.google.com/edge/api/mediapipe/python/mp/tasks/vision/FaceLandmarkerResult)
+
+**Normas e limites de pose (passo 5.5):**
+
+- [NIST, IFPC 2025: perfis da ISO/IEC 39794-5 e rascunho da ISO/IEC 25447](https://pages.nist.gov/ifpc/2025/presentations/12.pdf)
+- [ICAO, TAG/MRTD 18, WP10: *corrigendum* da ISO/IEC 19794-5 (roll ±8°)](https://www.icao.int/Meetings/TAG-MRTD/Documents/Tag-Mrtd-18/TagMrtd18_wp10.pdf)
+- [ICAO, TAG/MRTD 17, WP009: limite das ferramentas de controle de qualidade em ±5°](https://www2023.icao.int/Meetings/TAG-MRTD/Documents/Tag-Mrtd-17/TagMrtd17_WP009.pdf)
+- [ICAO: perfil de aplicação da ISO/IEC 39794-5](https://icao.int/Security/FAL/TRIP/PublishingImages/Pages/Publications/ICAO%20TR%20-%2039794-5%20eMRTD%20Application%20Profile.pdf)
+- [IDEMIA, EAB 2021: limites operacionais de qualidade facial](https://eab.org/files/events/2021-11-16-18_Face_Image_Quality/20211117_10_Stephane_Gentric_IDEMIA.pdf)
 
 ## Autor
 
